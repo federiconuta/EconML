@@ -187,8 +187,8 @@ class BootstrapEstimator:
                 return call
 
         def get_inference():
-            # can't import from econml.inference at top level without creating mutual dependencies
-            from .inference import EmpiricalInferenceResults
+            # can't import from econml.inference at top level without creating cyclical dependencies
+            from .inference import EmpiricalInferenceResults, NormalInferenceResults
 
             prefix = name[: - len("_inference")]
             if prefix in ['const_marginal_effect', 'marginal_effect', 'effect']:
@@ -212,21 +212,26 @@ class BootstrapEstimator:
                         return 2 * est - arr
                     else:
                         raise ValueError("Invalid kind, must be either 'percentile' or 'pivot'")
-                return proxy(callable(getattr(self._instances[0], prefix)), prefix,
-                             lambda arr, est: EmpiricalInferenceResults(d_t=d_t, d_y=d_y,
-                                                                        pred=est, pred_dist=get_dist(est, arr),
-                                                                        inf_type=inf_type, fname_transformer=None))
+
+                def call(*args, **kwargs):
+                    return proxy(callable(getattr(self._instances[0], prefix)), prefix,
+                                 lambda arr, est: EmpiricalInferenceResults(d_t=d_t, d_y=d_y,
+                                                                            pred=est, pred_dist=get_dist(est, arr),
+                                                                            inf_type=inf_type, fname_transformer=None))
+                return call
 
             def get_inference_parametric():
-                pred = getattr(self._wrapped, prefix)
-                stderr = getattr(self, prefix + '_std')
-                return NormalInferenceResults(d_t=d_t, d_y=d_y, pred=pred,
-                                              pred_stderr=stderr, inf_type=inf_type,
-                                              pred_dist=None, fname_transformer=None)
+                def call(*args, **kwargs):
+                    pred = getattr(self._wrapped, prefix)(*args, **kwargs)
+                    stderr = getattr(self, prefix + '_std')(*args, **kwargs)
+                    return NormalInferenceResults(d_t=d_t, d_y=d_y, pred=pred,
+                                                  pred_stderr=stderr, inf_type=inf_type,
+                                                  fname_transformer=None)
+                return call
 
             return {'normal': get_inference_parametric,
                     'percentile': lambda: get_inference_nonparametric('percentile'),
-                    'pivot': lambda: get_inference_nonparametric('pivot')}[self._bootstrap_type]
+                    'pivot': lambda: get_inference_nonparametric('pivot')}[self._bootstrap_type]()
 
         caught = None
         m = None

@@ -295,3 +295,19 @@ class TestBootstrap(unittest.TestCase):
         inference = BootstrapInference(n_bootstrap_samples=20)
         est.fit(Y, T, Z, X=X, inference=inference)
         est.const_marginal_effect_interval(X)
+
+    def test_all_kinds(self):
+        T = [1, 0, 1, 2, 0, 2] * 5
+        Y = [1, 2, 3, 4, 5, 6] * 5
+        X = np.array([1, 1, 2, 2, 1, 2] * 5).reshape(-1, 1)
+        est = LinearDMLCateEstimator(n_splits=2)
+        for kind in ['percentile', 'pivot', 'normal']:
+            with self.subTest(kind=kind):
+                inference = BootstrapInference(n_bootstrap_samples=5, bootstrap_type=kind)
+                est.fit(Y, T, inference=inference)
+                est.const_marginal_effect_interval()
+                est.const_marginal_effect_inference()
+
+                est.fit(Y, T, X=X, inference=inference)
+                est.const_marginal_effect_interval(X)
+                est.const_marginal_effect_inference(X)
